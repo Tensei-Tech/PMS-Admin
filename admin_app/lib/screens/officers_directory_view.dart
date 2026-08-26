@@ -5,6 +5,7 @@ import 'package:csv/csv.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 import '../utils/app_constants.dart';
+import '../utils/toast_service.dart';
 import '../widgets/officer_profile_dialog.dart';
 import '../services/audit_service.dart';
 
@@ -85,23 +86,18 @@ class _OfficersDirectoryViewState extends State<OfficersDirectoryView> {
         );
 
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Archived account for $name. Access has been revoked.'),
-              backgroundColor: Colors.orange.shade800,
-              behavior: SnackBarBehavior.floating,
-              width: 440,
-            ),
+          AdminToast.showWarning(
+            context,
+            'Archived account for $name. Access has been revoked.',
+            title: 'OFFICER ARCHIVED',
           );
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to archive account: $e'),
-              backgroundColor: Colors.red.shade700,
-              behavior: SnackBarBehavior.floating,
-            ),
+          AdminToast.showError(
+            context,
+            'Failed to archive account: $e',
+            title: 'ARCHIVE FAILED',
           );
         }
       }

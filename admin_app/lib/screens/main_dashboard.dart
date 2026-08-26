@@ -10,6 +10,7 @@ import 'notifications_view.dart';
 import 'police_stations_view.dart';
 import 'officers_directory_view.dart';
 import 'settings_view.dart';
+import 'state_management_view.dart';
 import '../services/app_settings_service.dart';
 import '../utils/app_constants.dart';
 
@@ -41,6 +42,7 @@ class _MainDashboardState extends State<MainDashboard> {
 
   final List<_NavItem> _navItems = const [
     _NavItem(icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard_rounded, label: 'Dashboard'),
+    _NavItem(icon: Icons.map_outlined, activeIcon: Icons.map_rounded, label: 'State Jurisdictions'),
     _NavItem(icon: Icons.badge_outlined, activeIcon: Icons.badge_rounded, label: 'Officers Directory'),
     _NavItem(icon: Icons.location_city_outlined, activeIcon: Icons.location_city_rounded, label: 'Police Stations'),
     _NavItem(icon: Icons.folder_outlined, activeIcon: Icons.folder_rounded, label: 'Cases'),
@@ -63,22 +65,24 @@ class _MainDashboardState extends State<MainDashboard> {
           },
         );
       case 1:
-        return const OfficersDirectoryView();
+        return const StateManagementView();
       case 2:
-        return const PoliceStationsView();
+        return const OfficersDirectoryView();
       case 3:
+        return const PoliceStationsView();
+      case 4:
         return CasesView(
           initialStatus: _casesInitialStatus,
         );
-      case 4:
-        return const AnnouncementsView();
       case 5:
-        return const NotificationsView();
+        return const AnnouncementsView();
       case 6:
-        return const AuditLogsView();
+        return const NotificationsView();
       case 7:
-        return const FeedbackView();
+        return const AuditLogsView();
       case 8:
+        return const FeedbackView();
+      case 9:
         return const SettingsView();
       default:
         return Center(
@@ -472,7 +476,7 @@ class _MainDashboardState extends State<MainDashboard> {
                               final data = profileSnap.data?.data() ?? {};
                               final authUser = FirebaseAuth.instance.currentUser;
                               final rawName = (data['name'] ?? data['fullName'] ?? authUser?.displayName)?.toString().trim();
-                              final email = (authUser?.email ?? data['email'])?.toString().trim() ?? 'admin@police.gov.in';
+                              final email = (authUser?.email ?? data['email'])?.toString().trim() ?? 'master.admin@pms.gov.in';
 
                               // Top line: admin's actual name if set (and distinct from role label), otherwise email fallback
                               final String displayName = (rawName != null && rawName.isNotEmpty && rawName != 'Master Admin')

@@ -1,0 +1,33 @@
+# ============================================================
+# PMS Admin Project .gitignore
+# ============================================================
+
+# Flutter / Dart generated
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/*.iml
+**/.idea/
+**/.pub/
+**/.pub-cache/
+
+# Flutter build output (ALL platforms)
+**/build/
+**/android/build/
+**/android/app/build/
+**/ios/Pods/
+**/ios/build/
+**/.gradle/
+**/linux/build/
+**/macos/build/
+**/windows/build/
+
+# Secret keys & credentials
+**/*service-account*.json
+**/*serviceAccount*.json
+**/firebase_credentials.json
+
+# Logs & temp
+*.log
+.DS_Store

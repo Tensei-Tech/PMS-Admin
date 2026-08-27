@@ -75,21 +75,10 @@ class AppSettingsService {
           }
         }
         recordCurrentSession();
-      } else {
-        // Check system settings doc as fallback
-        final sysDoc = await FirebaseFirestore.instance
-            .collection('system_settings')
-            .doc('preferences')
-            .get()
-            .timeout(const Duration(seconds: 2));
-        if (sysDoc.exists) {
-          final data = sysDoc.data() ?? {};
-          final isDark = data['darkMode'] == true;
-          themeModeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
-        }
       }
     } catch (e) {
-      debugPrint('AppSettingsService.initialize error: $e');
+      // Unauthenticated or default initial state
+      debugPrint('AppSettingsService initialized with default preferences.');
     }
   }
 
@@ -429,7 +418,7 @@ class AppSettingsService {
   /// Send password reset email as alternative
   static Future<void> sendPasswordResetEmail() async {
     final user = FirebaseAuth.instance.currentUser;
-    final email = user?.email ?? 'admin@police.gov.in';
+    final email = user?.email ?? 'master.admin@pms.gov.in';
     await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
     await AuditService.logAction(
       action: 'PASSWORD_RESET_EMAIL_REQUESTED',

@@ -16,7 +16,7 @@ class _SettingsViewState extends State<SettingsView> {
 
   void _showEditProfileDialog(Map<String, dynamic> currentData) {
     final nameCtrl = TextEditingController(text: currentData['name'] ?? 'Master Admin');
-    final email = FirebaseAuth.instance.currentUser?.email ?? currentData['email']?.toString() ?? 'admin@police.gov.in';
+    final email = FirebaseAuth.instance.currentUser?.email ?? currentData['email']?.toString() ?? 'master.admin@pms.gov.in';
     final emailCtrl = TextEditingController(text: email);
     final phoneCtrl = TextEditingController(text: currentData['phone'] ?? currentData['phoneNumber'] ?? '+91 98765 43210');
     final photoCtrl = TextEditingController(text: currentData['photoUrl'] ?? currentData['profilePhoto'] ?? '');
@@ -378,7 +378,7 @@ class _SettingsViewState extends State<SettingsView> {
             builder: (context, profileSnapshot) {
               final adminData = profileSnapshot.data?.data() ?? {};
               final currentAdminName = adminData['name']?.toString() ?? 'Master Admin';
-              final currentEmail = FirebaseAuth.instance.currentUser?.email ?? adminData['email']?.toString() ?? 'admin@police.gov.in';
+              final currentEmail = FirebaseAuth.instance.currentUser?.email ?? adminData['email']?.toString() ?? 'master.admin@pms.gov.in';
               final currentRole = adminData['role']?.toString() ?? 'super_admin';
               final photoUrl = adminData['photoUrl']?.toString() ?? adminData['profilePhoto']?.toString();
 

@@ -60,7 +60,7 @@ class _AuditLogsViewState extends State<AuditLogsView> {
       }
       final email = userDoc['email']?.toString().trim();
       if (email != null && email.isNotEmpty) {
-        if (email == 'admin@police.gov.in') return 'Master Admin';
+        if (email == 'master.admin@pms.gov.in' || email == 'admin@police.gov.in') return 'Master Admin';
         return email;
       }
     }
@@ -74,16 +74,16 @@ class _AuditLogsViewState extends State<AuditLogsView> {
       }
       final email = userDoc['email']?.toString().trim();
       if (email != null && email.isNotEmpty) {
-        if (email == 'admin@police.gov.in') return 'Master Admin';
+        if (email == 'master.admin@pms.gov.in' || email == 'admin@police.gov.in') return 'Master Admin';
         return email;
       }
     }
 
     // 3. Check if details contain email or admin references
-    if (details.contains('admin@police.gov.in') || details.toLowerCase().contains('master admin')) {
+    if (details.contains('master.admin@pms.gov.in') || details.contains('admin@police.gov.in') || details.toLowerCase().contains('master admin')) {
       // Find admin user document if exists in map
       for (final u in usersMap.values) {
-        if (u['email'] == 'admin@police.gov.in' || u['role'] == 'super_admin') {
+        if (u['email'] == 'master.admin@pms.gov.in' || u['email'] == 'admin@police.gov.in' || u['role'] == 'super_admin') {
           final adminName = (u['name'] ?? u['fullName'])?.toString().trim();
           if (adminName != null && adminName.isNotEmpty && adminName != 'super_admin') {
             return adminName;
@@ -104,7 +104,7 @@ class _AuditLogsViewState extends State<AuditLogsView> {
           if (name != null && name.isNotEmpty) return name;
         }
       }
-      if (extractedEmail == 'admin@police.gov.in') return 'Master Admin';
+      if (extractedEmail == 'master.admin@pms.gov.in' || extractedEmail == 'admin@police.gov.in') return 'Master Admin';
       return extractedEmail;
     }
 

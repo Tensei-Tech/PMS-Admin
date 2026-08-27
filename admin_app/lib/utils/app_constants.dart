@@ -703,6 +703,7 @@ class AppConstants {
         role == 'super admin' ||
         role == 'master admin' ||
         data['isSuperAdmin'] == true ||
+        email == 'master.admin@pms.gov.in' ||
         email == 'admin@police.gov.in' ||
         email == 'superadmin@police.gov.in' ||
         email.startsWith('admin@') ||

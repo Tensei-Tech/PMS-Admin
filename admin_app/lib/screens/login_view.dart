@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 import '../services/audit_service.dart';
+import '../utils/toast_service.dart';
 import 'main_dashboard.dart';
 import 'two_factor_auth_view.dart';
 
@@ -14,8 +14,8 @@ class LoginView extends StatefulWidget {
 
 class _LoginViewState extends State<LoginView> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController(text: 'admin@police.gov.in');
-  final TextEditingController _passwordController = TextEditingController(text: 'Admin@123456');
+  final TextEditingController _emailController = TextEditingController(text: 'master.admin@pms.gov.in');
+  final TextEditingController _passwordController = TextEditingController(text: 'Auth@123');
   bool _isLoading = false;
   bool _obscurePassword = true;
 
@@ -35,145 +35,36 @@ class _LoginViewState extends State<LoginView> {
 
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-    String adminPhone = '+919876543210';
 
     try {
-      // Sign in with Firebase Authentication — this MUST succeed before proceeding
-      final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      bool is2FAEnabled = true;
-
-      // Ensure admin profile exists in Firestore with super_admin role & active status
-      try {
-        final uid = userCredential.user?.uid;
-        if (uid != null) {
-          final userDocRef = FirebaseFirestore.instance.collection('users').doc(uid);
-          final doc = await userDocRef.get().timeout(const Duration(seconds: 3));
-          if (doc.exists) {
-            final data = doc.data();
-            if (data?['twoFactorAuthEnabled'] != null) {
-              is2FAEnabled = data!['twoFactorAuthEnabled'] == true;
-            }
-            final phone = (data?['phone'] ?? data?['phoneNumber'])?.toString();
-            if (phone != null && phone.isNotEmpty) {
-              adminPhone = phone;
-            }
-            // Ensure super_admin role is set in background
-            if (data?['role'] != 'super_admin' || data?['accountStatus'] != 'active') {
-              userDocRef.set({
-                'role': 'super_admin',
-                'accountStatus': 'active',
-                'designation': data?['designation'] ?? 'CP',
-              }, SetOptions(merge: true));
-            }
-          } else {
-            // Auto-create initial Master Admin document in background
-            userDocRef.set({
-              'name': 'Master Admin',
-              'email': email,
-              'role': 'super_admin',
-              'accountStatus': 'active',
-              'phone': adminPhone,
-              'twoFactorAuthEnabled': true,
-              'createdAt': FieldValue.serverTimestamp(),
-            });
-          }
-        }
-      } catch (_) {
-        // Phone lookup is optional — use default phone for 2FA
-      }
-
-      if (!is2FAEnabled) {
-        // Admin disabled 2FA in Settings -> Directly grant access!
-        AuditService.logAction(
-          action: 'PRIMARY_AUTH_SUCCESS_DIRECT',
-          targetUserId: userCredential.user?.uid ?? 'super_admin',
-          details: 'Direct login authenticated without 2FA step (2FA disabled by admin setting) for $email',
-        );
-
-        if (!mounted) return;
-        setState(() => _isLoading = false);
-
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const MainDashboard()),
-          (route) => false,
-        );
-        return;
-      }
+      // 1. Authenticate against Django PostgreSQL Backend API
+      final result = await ApiService.login(email, password);
+      final user = result['user'] ?? {};
 
       AuditService.logAction(
-        action: 'PRIMARY_AUTH_SUCCESS',
-        targetUserId: 'admin',
-        details: 'Email/Password verified for $email. Initiating 2FA OTP step.',
+        action: 'PRIMARY_AUTH_SUCCESS_BACKEND',
+        targetUserId: user['uid'] ?? 'super_admin',
+        details: 'Logged in via Django PostgreSQL backend for $email',
       );
 
       if (!mounted) return;
+      setState(() => _isLoading = false);
 
-      // Start phone verification with fast fallback to avoid blocking login UI
-      bool navigated = false;
-      void navigateOnce(String? vId, int? token) {
-        if (!navigated) {
-          navigated = true;
-          _navigateTo2FA(email, adminPhone, vId, token);
-        }
-      }
-
-      try {
-        FirebaseAuth.instance.verifyPhoneNumber(
-          phoneNumber: adminPhone,
-          verificationCompleted: (PhoneAuthCredential credential) {},
-          verificationFailed: (FirebaseAuthException e) {
-            navigateOnce(null, null);
-          },
-          codeSent: (String verificationId, int? resendToken) {
-            navigateOnce(verificationId, resendToken);
-          },
-          codeAutoRetrievalTimeout: (String verificationId) {
-            navigateOnce(verificationId, null);
-          },
-        );
-
-        // Fallback timer: if reCAPTCHA or SMS network takes more than 2.5s, proceed to 2FA view
-        Future.delayed(const Duration(milliseconds: 2500), () {
-          navigateOnce(null, null);
-        });
-      } catch (_) {
-        navigateOnce(null, null);
-      }
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const MainDashboard()),
+        (route) => false,
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Authentication Failed: $e'),
-          backgroundColor: Colors.red.shade700,
-          behavior: SnackBarBehavior.floating,
-        ),
+      AdminToast.showError(
+        context,
+        e.toString().replaceAll("Exception:", "").trim(),
+        title: 'AUTHENTICATION FAILED',
       );
     }
-  }
-
-  void _navigateTo2FA(String email, String phone, String? verificationId, int? resendToken) {
-    if (!mounted) return;
-    setState(() {
-      _isLoading = false;
-    });
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => TwoFactorAuthView(
-          email: email,
-          phone: phone,
-          verificationId: verificationId,
-          resendToken: resendToken,
-        ),
-      ),
-    );
   }
 
   @override

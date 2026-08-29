@@ -15,7 +15,6 @@ class MasterUser(models.Model):
     full_name = models.CharField(max_length=255)
     phone = models.CharField(max_length=32, blank=True)
     is_active = models.BooleanField(default=True)
-    firebase_uid = models.CharField(max_length=128, blank=True, null=True, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -42,6 +41,7 @@ class StateRegistry(models.Model):
     state_name = models.CharField(max_length=100, unique=True)
     schema_name = models.CharField(max_length=64, unique=True)
     police_force_title = models.CharField(max_length=255, blank=True, help_text="e.g. Gujarat State Police")
+    department_logo_url = models.TextField(blank=True, null=True, help_text="State Police Department PNG Logo URL or Base64 Image Data")
     super_admin_name = models.CharField(max_length=255, blank=True)
     super_admin_email = models.EmailField(blank=True)
     super_admin_phone = models.CharField(max_length=32, blank=True)
@@ -71,7 +71,7 @@ class OfficerProfile(models.Model):
         ('rejected', 'Rejected'),
     )
 
-    uid = models.CharField(max_length=128, primary_key=True, help_text="Unique Officer Identifier / Firebase UID")
+    uid = models.CharField(max_length=128, primary_key=True, help_text="Unique Officer Identifier")
     name = models.CharField(max_length=255, blank=True)
     password = models.CharField(max_length=128, blank=True, null=True)
     badge_number = models.CharField(max_length=64, blank=True)
@@ -91,6 +91,8 @@ class OfficerProfile(models.Model):
     district = models.CharField(max_length=128, blank=True, null=True)
     district_id = models.CharField(max_length=64, blank=True, null=True)
     zone = models.CharField(max_length=128, blank=True, null=True)
+    age = models.IntegerField(blank=True, null=True)
+    gender = models.CharField(max_length=20, blank=True, null=True)
     station_case_view_granted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

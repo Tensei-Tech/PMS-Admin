@@ -3,6 +3,7 @@ from .views import (
     AdminLoginView,
     StateListCreateView,
     AvailableStatesView,
+    DesignationListView,
     DashboardStatsView,
     OfficerListCreateView,
     OfficerDetailView,
@@ -13,15 +14,22 @@ from .views import (
     TransferRequestListCreateView,
     TransferRequestDetailView,
     AuditLogListView,
+    StateAdminListView,
+    StateAdminToggleStatusView,
 )
 
 urlpatterns = [
     # Primary Authentication Endpoint
     path('login/', AdminLoginView.as_view(), name='admin-login'),
 
+    # Dynamic Police Designation Master
+    path('designations/', DesignationListView.as_view(), name='admin-designation-list'),
+
     # State Registries & Onboarding Endpoints
     path('states/', StateListCreateView.as_view(), name='admin-state-list-create'),
     path('states/available/', AvailableStatesView.as_view(), name='admin-state-available'),
+    path('states/<str:state_code>/admins/', StateAdminListView.as_view(), name='admin-state-admin-list'),
+    path('states/<str:state_code>/admins/<str:uid>/toggle-status/', StateAdminToggleStatusView.as_view(), name='admin-state-admin-toggle-status'),
 
     # Dashboard stats & metrics
     path('stats/', DashboardStatsView.as_view(), name='admin-dashboard-stats'),

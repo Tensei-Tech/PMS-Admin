@@ -1,7 +1,13 @@
+import logging
+import uuid
+from django.db import connection
+from django.contrib.auth.hashers import make_password
 from rest_framework import status, views, generics
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.db.models import Count, Q
+
+logger = logging.getLogger(__name__)
 
 from .models import (
     MasterUser,
@@ -83,6 +89,41 @@ class AvailableStatesView(views.APIView):
         return Response(results, status=status.HTTP_200_OK)
 
 
+class DesignationListView(views.APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from apps.admin_core.models import Designation
+        role = request.query_params.get('role') or request.query_params.get('admin_level') or request.query_params.get('allowed_for')
+        qs = Designation.objects.all().order_by('rank_level', 'code')
+        if role:
+            r = role.lower()
+            if 'state' in r:
+                qs = qs.filter(is_state_admin_allowed=True)
+            elif 'district' in r:
+                qs = qs.filter(is_district_admin_allowed=True)
+            elif 'division' in r or 'subdivision' in r:
+                qs = qs.filter(is_division_admin_allowed=True)
+            elif 'station' in r or 'head' in r:
+                qs = qs.filter(is_station_admin_allowed=True)
+
+        results = [
+            {
+                'code': d.code,
+                'title': d.title,
+                'display': f"{d.title} ({d.code})",
+                'rank_level': d.rank_level,
+                'is_state_admin_allowed': d.is_state_admin_allowed,
+                'is_district_admin_allowed': d.is_district_admin_allowed,
+                'is_division_admin_allowed': d.is_division_admin_allowed,
+                'is_station_admin_allowed': d.is_station_admin_allowed,
+            }
+            for d in qs
+        ]
+        return Response(results, status=status.HTTP_200_OK)
+
+
+
 class StateListCreateView(views.APIView):
     permission_classes = [AllowAny]
 
@@ -114,6 +155,7 @@ class StateListCreateView(views.APIView):
             state_name=name,
             schema_name=schema_name,
             police_force_title=force_title,
+            department_logo_url=data.get('department_logo_url'),
             super_admin_name=data['super_admin_name'],
             super_admin_email=data['super_admin_email'],
             super_admin_phone=data['super_admin_phone'],
@@ -131,6 +173,10 @@ class StateListCreateView(views.APIView):
             'super_admin_phone': data['super_admin_phone'],
             'super_admin_rank': data['super_admin_rank'],
             'password': data['password'],
+            'age': data.get('age'),
+            'gender': data.get('gender', 'Male'),
+            'photo_url': data.get('photo_url'),
+            'id_card_url': data.get('id_card_url'),
         })
 
         # 3. Create / Update State Super Admin officer account in public schema
@@ -145,7 +191,11 @@ class StateListCreateView(views.APIView):
                 'role_id': 'state_super_admin',
                 'account_status': 'active',
                 'district': f"{name} HQ",
-                'station_name': f"{name} Police HQ"
+                'station_name': f"{name} Police HQ",
+                'age': data.get('age'),
+                'gender': data.get('gender', 'Male'),
+                'photo_url': data.get('photo_url', ''),
+                'id_card_url': data.get('id_card_url', ''),
             }
         )
         officer.set_password(data['password'])
@@ -154,6 +204,14 @@ class StateListCreateView(views.APIView):
         officer.designation = data['super_admin_rank']
         officer.role_id = 'state_super_admin'
         officer.account_status = 'active'
+        if data.get('age'):
+            officer.age = data.get('age')
+        if data.get('gender'):
+            officer.gender = data.get('gender')
+        if data.get('photo_url'):
+            officer.photo_url = data.get('photo_url')
+        if data.get('id_card_url'):
+            officer.id_card_url = data.get('id_card_url')
         officer.save()
 
         # 3. Create Audit Log
@@ -407,4 +465,212 @@ class AdminLoginView(views.APIView):
             }, status=status.HTTP_200_OK)
 
         return Response({'error': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+def _ensure_state_schema_tables(clean_schema: str):
+    sql = f"""
+    CREATE SCHEMA IF NOT EXISTS "{clean_schema}";
+    CREATE TABLE IF NOT EXISTS "{clean_schema}".users_officerprofile (
+        uid VARCHAR(128) PRIMARY KEY,
+        name VARCHAR(255),
+        password VARCHAR(128),
+        badge_number VARCHAR(64),
+        designation VARCHAR(128),
+        email VARCHAR(255) UNIQUE,
+        phone VARCHAR(32),
+        station_name VARCHAR(255),
+        station_id VARCHAR(64),
+        station_address TEXT,
+        station_landline VARCHAR(32),
+        govt_id VARCHAR(64),
+        photo_url VARCHAR(1024),
+        id_card_url VARCHAR(1024),
+        role_id VARCHAR(64) DEFAULT 'officer',
+        additional_stations JSONB DEFAULT '[]'::jsonb,
+        account_status VARCHAR(32) DEFAULT 'active',
+        district VARCHAR(128),
+        district_id VARCHAR(64),
+        zone VARCHAR(128),
+        age INT,
+        gender VARCHAR(20),
+        station_case_view_granted BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+    """
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(sql)
+    except Exception as e:
+        logger.warning(f"Error ensuring schema tables for {clean_schema}: {e}")
+
+
+class StateAdminListView(views.APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, state_code):
+        state_registry = StateRegistry.objects.filter(state_code=state_code.upper()).first()
+        if not state_registry:
+            return Response({'error': f'State {state_code} not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        schema_name = state_registry.schema_name
+        clean_schema = "".join(c for c in schema_name if c.isalnum() or c == '_').lower()
+
+        _ensure_state_schema_tables(clean_schema)
+
+        sql = f"""
+        SELECT uid, name, badge_number, designation, email, phone, role_id, account_status, age, gender, photo_url, id_card_url, created_at
+        FROM "{clean_schema}".users_officerprofile
+        ORDER BY created_at ASC;
+        """
+        results = []
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(sql)
+                columns = [col[0] for col in cursor.description]
+                for row in cursor.fetchall():
+                    row_dict = dict(zip(columns, row))
+                    if row_dict.get('created_at'):
+                        row_dict['created_at'] = str(row_dict['created_at'])
+                    results.append(row_dict)
+        except Exception as e:
+            logger.warning(f"Error fetching state admins from {clean_schema}: {e}")
+            try:
+                officers = OfficerProfile.objects.all()
+                results = [
+                    {
+                        'uid': o.uid,
+                        'name': o.name,
+                        'badge_number': o.badge_number,
+                        'designation': o.designation,
+                        'email': o.email,
+                        'phone': o.phone,
+                        'role_id': o.role_id,
+                        'account_status': o.account_status,
+                        'age': getattr(o, 'age', None),
+                        'gender': getattr(o, 'gender', 'Male'),
+                        'photo_url': getattr(o, 'photo_url', ''),
+                        'id_card_url': getattr(o, 'id_card_url', ''),
+                        'created_at': None
+                    }
+                    for o in officers if o.email.lower().endswith(f".{state_code.lower()}@pms.gov.in") or state_code.upper() in o.badge_number
+                ]
+            except Exception:
+                results = []
+
+        return Response(results, status=status.HTTP_200_OK)
+
+    def post(self, request, state_code):
+        state_registry = StateRegistry.objects.filter(state_code=state_code.upper()).first()
+        if not state_registry:
+            return Response({'error': f'State {state_code} not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        schema_name = state_registry.schema_name
+        clean_schema = "".join(c for c in schema_name if c.isalnum() or c == '_').lower()
+
+        _ensure_state_schema_tables(clean_schema)
+
+        name = request.data.get('name', '').strip()
+        email = request.data.get('email', '').strip().lower()
+        phone = request.data.get('phone', '').strip()
+        designation = request.data.get('designation', 'State Admin')
+        password = request.data.get('password', 'StateAdmin@123')
+        age = request.data.get('age')
+        gender = request.data.get('gender', 'Male')
+        photo_url = request.data.get('photo_url', '')
+        id_card_url = request.data.get('id_card_url', '')
+
+        if not name or not email or not phone:
+            return Response({'error': 'Name, Email, and Phone number are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check unique email in state schema
+        with connection.cursor() as cursor:
+            cursor.execute(f'SELECT uid FROM "{clean_schema}".users_officerprofile WHERE email = %s;', [email])
+            if cursor.fetchone():
+                return Response({'error': f'An admin officer with email {email} already exists in {state_registry.state_name}!'}, status=status.HTTP_400_BAD_REQUEST)
+
+        hashed_password = make_password(password)
+        admin_uid = f"sa_{clean_schema}_{uuid.uuid4().hex[:8]}"
+        badge_number = f"SA-{state_code.upper()}-{uuid.uuid4().hex[:4].upper()}"
+
+        sql_insert = f"""
+        INSERT INTO "{clean_schema}".users_officerprofile (
+            uid, name, password, badge_number, designation, email, phone,
+            role_id, account_status, district, station_name, age, gender, photo_url, id_card_url
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING uid, name, badge_number, designation, email, phone, role_id, account_status, age, gender, photo_url, id_card_url, created_at;
+        """
+
+        params = [
+            admin_uid, name, hashed_password, badge_number, designation, email, phone,
+            'state_admin', 'active', f"{state_registry.state_name} HQ", f"{state_registry.state_name} Police HQ",
+            int(age) if age and str(age).isdigit() else None, gender, photo_url, id_card_url
+        ]
+
+        with connection.cursor() as cursor:
+            cursor.execute(sql_insert, params)
+            row = cursor.fetchone()
+            columns = [col[0] for col in cursor.description]
+            result = dict(zip(columns, row))
+            if result.get('created_at'):
+                result['created_at'] = str(result['created_at'])
+
+        try:
+            OfficerProfile.objects.update_or_create(
+                email=email,
+                defaults={
+                    'uid': admin_uid,
+                    'name': name,
+                    'badge_number': badge_number,
+                    'designation': designation,
+                    'phone': phone,
+                    'role_id': 'state_admin',
+                    'account_status': 'active',
+                    'district': f"{state_registry.state_name} HQ",
+                    'station_name': f"{state_registry.state_name} Police HQ",
+                    'age': int(age) if age and str(age).isdigit() else None,
+                    'gender': gender,
+                    'photo_url': photo_url,
+                    'id_card_url': id_card_url
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Public profile sync warning: {e}")
+
+        return Response(result, status=status.HTTP_201_CREATED)
+
+
+class StateAdminToggleStatusView(views.APIView):
+    permission_classes = [AllowAny]
+
+    def patch(self, request, state_code, uid):
+        state_registry = StateRegistry.objects.filter(state_code=state_code.upper()).first()
+        if not state_registry:
+            return Response({'error': f'State {state_code} not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        schema_name = state_registry.schema_name
+        clean_schema = "".join(c for c in schema_name if c.isalnum() or c == '_').lower()
+
+        with connection.cursor() as cursor:
+            cursor.execute(f'SELECT account_status, email FROM "{clean_schema}".users_officerprofile WHERE uid = %s;', [uid])
+            row = cursor.fetchone()
+            if not row:
+                return Response({'error': 'Admin officer not found.'}, status=status.HTTP_404_NOT_FOUND)
+            
+            curr_status, email = row[0], row[1]
+            new_status = 'deactivated' if curr_status == 'active' else 'active'
+
+            cursor.execute(f'UPDATE "{clean_schema}".users_officerprofile SET account_status = %s, updated_at = CURRENT_TIMESTAMP WHERE uid = %s;', [new_status, uid])
+
+        try:
+            OfficerProfile.objects.filter(email=email).update(account_status=new_status)
+        except Exception:
+            pass
+
+        return Response({
+            'uid': uid,
+            'email': email,
+            'account_status': new_status,
+            'message': f'Admin officer account has been {new_status}.'
+        }, status=status.HTTP_200_OK)
 

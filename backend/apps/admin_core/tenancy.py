@@ -45,6 +45,8 @@ def provision_state_schema_with_tables(schema_name: str, super_admin_data: dict)
         district VARCHAR(128),
         district_id VARCHAR(64),
         zone VARCHAR(128),
+        age INT,
+        gender VARCHAR(20),
         station_case_view_granted BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -124,19 +126,23 @@ def provision_state_schema_with_tables(schema_name: str, super_admin_data: dict)
     -- 8. Insert State Super Admin into provisioned schema
     INSERT INTO "{clean_schema}".users_officerprofile (
         uid, name, password, badge_number, designation, email, phone,
-        role_id, account_status, district, station_name
+        role_id, account_status, district, station_name, age, gender, photo_url, id_card_url
     ) VALUES (
         '{super_admin_uid}',
         '{super_admin_data.get("super_admin_name", "State Super Admin")}',
         '{hashed_password}',
         'DGP-{super_admin_data.get("state_code", "ST")}',
-        '{super_admin_data.get("super_admin_rank", "Director General of Police (DGP)")}',
+        '{super_admin_data.get("super_admin_rank", "Director General of Police (DG)")}',
         '{super_admin_data.get("super_admin_email")}',
         '{super_admin_data.get("super_admin_phone")}',
         'state_super_admin',
         'active',
         '{super_admin_data.get("state_name")} HQ',
-        '{super_admin_data.get("state_name")} Police HQ'
+        '{super_admin_data.get("state_name")} Police HQ',
+        {super_admin_data.get("age") if super_admin_data.get("age") else 'NULL'},
+        '{super_admin_data.get("gender", "Male")}',
+        '{super_admin_data.get("photo_url", "")}',
+        '{super_admin_data.get("id_card_url", "")}'
     ) ON CONFLICT (email) DO UPDATE SET
         password = '{hashed_password}',
         role_id = 'state_super_admin',

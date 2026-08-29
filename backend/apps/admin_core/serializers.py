@@ -21,11 +21,16 @@ class CreateStateOnboardingSerializer(serializers.Serializer):
     state_code = serializers.CharField(max_length=10)
     state_name = serializers.CharField(max_length=100)
     police_force_title = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    department_logo_url = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     super_admin_name = serializers.CharField(max_length=255)
     super_admin_email = serializers.EmailField()
     super_admin_phone = serializers.CharField(max_length=32)
-    super_admin_rank = serializers.CharField(max_length=128, default='Director General of Police (DGP)')
+    super_admin_rank = serializers.CharField(max_length=128, default='Director General of Police (DG)')
     password = serializers.CharField(max_length=128)
+    age = serializers.IntegerField(required=False, allow_null=True)
+    gender = serializers.CharField(max_length=20, required=False, allow_blank=True, default='Male')
+    photo_url = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    id_card_url = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     def validate_super_admin_email(self, value):
         email = value.strip().lower()
